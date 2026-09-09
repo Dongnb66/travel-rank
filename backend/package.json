@@ -1,0 +1,15 @@
+{
+  "name": "travel-rank",
+  "version": "1.0.0",
+  "description": "旅游规划与地点口碑聚合平台：用户发帖分享地点优点，平台聚合热度排名并 AI 总结，支持路线规划与价格比较",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --experimental-sqlite server.js",
+    "smoke": "node --experimental-sqlite test_smoke.mjs"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "license": "MIT"
+}

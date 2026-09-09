@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>途见 TravelRank · 旅游口碑聚合平台</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🧭 途见 <span>TravelRank</span></div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="board">口碑榜</button>
+      <button class="tab" data-tab="post">发帖分享</button>
+      <button class="tab" data-tab="plan">行程规划</button>
+      <button class="tab" data-tab="price">价格比较</button>
+      <button class="tab" data-tab="assistant">AI 助手</button>
+      <button class="tab" data-tab="community">社区</button>
+      <button class="tab" data-tab="ops" id="opsTab" style="display:none">运维</button>
+    </nav>
+    <div class="user-box" id="userBox">
+      <button class="btn ghost" id="loginBtn">登录 / 注册</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 口碑榜 -->
+    <section class="panel active" id="panel-board">
+      <h2>🏆 地点口碑总榜</h2>
+      <p class="sub">平台聚合所有用户分享帖，按「发帖数 × 投票 × 评分」计算热度，并提炼高频优点排名。</p>
+      <div id="boardList" class="board-list"></div>
+    </section>
+
+    <!-- 发帖分享 -->
+    <section class="panel" id="panel-post">
+      <h2>✍️ 分享一个地点</h2>
+      <p class="sub">把你去过的地方的优点写下来，平台会自动聚合进口碑榜。</p>
+      <form id="postForm" class="form">
+        <label>选择地点
+          <select id="postLocation" required></select>
+        </label>
+        <label>标题
+          <input id="postTitle" required placeholder="如：三亚看海天花板" />
+        </label>
+        <label>分享内容
+          <textarea id="postContent" rows="3" required placeholder="描述这个地方好在哪"></textarea>
+        </label>
+        <div class="row">
+          <label>日均花费(¥)
+            <input id="postPrice" type="number" min="0" placeholder="可选" />
+          </label>
+          <label>评分(1-5)
+            <input id="postRating" type="number" min="1" max="5" value="5" />
+          </label>
+        </div>
+        <label>优点标签（逗号分隔）
+          <input id="postAdvantages" placeholder="如：海水清澈, 日落好看, 海鲜便宜" />
+        </label>
+        <button class="btn primary" type="submit">发布分享</button>
+        <p id="postMsg" class="msg"></p>
+      </form>
+    </section>
+
+    <!-- 行程规划 -->
+    <section class="panel" id="panel-plan">
+      <h2>🗺️ 智能行程规划</h2>
+      <p class="sub">勾选想去的地方与天数，平台自动排路线、比价格、给预算建议。</p>
+      <div id="planDestinations" class="plan-dest"></div>
+      <label class="budget">总预算(¥)
+        <input id="planBudget" type="number" min="0" placeholder="可选，如 5000" />
+      </label>
+      <button class="btn primary" id="planBtn">生成路线</button>
+      <div id="planResult" class="plan-result"></div>
+    </section>
+
+    <!-- 价格比较 -->
+    <section class="panel" id="panel-price">
+      <h2>💰 同一目的地比价</h2>
+      <p class="sub">看看不同套餐/方式去同一个地方差多少。</p>
+      <label>选择地点
+        <select id="priceLocation"></select>
+      </label>
+      <button class="btn primary" id="priceBtn">查价</button>
+      <div id="priceResult" class="price-result"></div>
+    </section>
+  </main>
+
+  <!-- 登录弹窗 -->
+  <div class="modal hidden" id="loginModal">
+    <div class="modal-card">
+      <button class="close" id="closeModal">×</button>
+      <h3>登录 / 注册</h3>
+      <input id="lgnNick" placeholder="昵称" />
+      <input id="lgnPwd" type="password" placeholder="密码" />
+      <button class="btn primary" id="lgnSubmit">登录</button>
+      <button class="btn ghost" id="lgnRegister">注册新账号</button>
+      <p class="msg" id="lgnMsg"></p>
+      <div class="oauth-line"><span>或使用第三方扫码登录</span></div>
+      <div class="oauth-btns">
+        <button class="btn ghost" id="wxLogin">💬 微信扫码登录</button>
+        <button class="btn ghost" id="qqLogin">🐧 QQ 扫码登录</button>
+      </div>
+      <div id="bindStep" class="bind-step hidden">
+        <p class="sub">首次使用 <b id="bindProviderName">微信</b> 登录，请先验证手机号或邮箱</p>
+        <input id="bindTarget" placeholder="手机号或邮箱" />
+        <div class="row-code">
+          <input id="bindCode" placeholder="6 位验证码" />
+          <button class="btn ghost" id="bindSendCode">获取验证码</button>
+        </div>
+        <button class="btn primary" id="bindConfirm">验证并登录</button>
+      </div>
+      <div class="demo">
+        演示账号（已含示例数据）：<br />
+        <button class="chip" data-u="旅行者小明" data-p="travel123">旅行者小明</button>
+        <button class="chip" data-u="吃货阿珍" data-p="travel123">吃货阿珍</button>
+        <button class="chip" data-u="平台管理员" data-p="admin123">平台管理员(可置顶)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 助手 -->
+  <section class="panel" id="panel-assistant">
+    <h2>🤖 AI 旅行助手</h2>
+    <p class="sub">智能体调用工具：路线规划、比价、百度地图挖宝藏地点（配置 DeepSeek Key 后更强，当前为离线规则模式）。</p>
+    <div id="chatBox" class="chat-box"></div>
+    <div class="chat-input">
+      <input id="chatText" placeholder="例如：帮我规划三亚+成都5日游 / 成都小众美食" />
+      <button class="btn primary" id="chatSend">发送</button>
+    </div>
+  </section>
+
+  <!-- 社区 -->
+  <section class="panel" id="panel-community">
+    <h2>💬 社区动态</h2>
+    <p class="sub">所有分享帖与评论，点开可看评论、参与讨论。</p>
+    <div id="communityList" class="community-list"></div>
+  </section>
+
+  <!-- 运维（管理员） -->
+  <section class="panel" id="panel-ops">
+    <h2>🛠️ 运营维护看板</h2>
+    <p class="sub">平台运行指标与数据规模（体现上线后的运维/监控能力）。</p>
+    <div id="opsBox" class="ops-box"></div>
+  </section>
+
+  <!-- 账号绑定弹窗 -->
+  <div class="modal hidden" id="bindModal">
+    <div class="modal-card">
+      <button class="close" id="closeBind">×</button>
+      <h3>账号绑定</h3>
+      <p class="sub">绑定后可一键微信 / QQ / 手机号登录。</p>
+      <label>绑定手机号
+        <input id="bindPhone" placeholder="11 位手机号" />
+        <input id="bindPhonePwd" type="password" placeholder="设置密码" />
+      </label>
+      <button class="btn primary" id="bindPhoneBtn">绑定手机号</button>
+      <div style="margin-top:10px">
+        <button class="chip" id="bindWechat">🔗 绑定微信（mock）</button>
+        <button class="chip" id="bindQQ">🔗 绑定 QQ（mock）</button>
+      </div>
+      <p class="msg" id="bindMsg"></p>
+    </div>
+  </div>
+
+  <!-- 我的：个人中心 + 消息中心（右侧抽屉） -->
+  <div id="meDrawer" class="drawer hidden">
+    <div class="drawer-mask" id="meMask"></div>
+    <aside class="drawer-panel">
+      <div class="drawer-head">
+        <span>👤 我的</span>
+        <button id="meClose">×</button>
+      </div>
+      <div class="me-profile" id="meProfile"></div>
+      <div class="me-tabs">
+        <button class="me-tab active" data-mt="posts">我的帖子</button>
+        <button class="me-tab" data-mt="msg">消息<span class="badge-dot hidden" id="meMsgDot"></span></button>
+        <button class="me-tab" data-mt="bind">账号绑定</button>
+      </div>
+      <div class="me-body">
+        <div id="mePanePosts" class="me-pane active"></div>
+        <div id="mePaneMsg" class="me-pane">
+          <div class="msg-tabs">
+            <button class="msg-tab active" data-ct="notify">🔔 通知</button>
+            <button class="msg-tab" data-ct="chat">✉️ 私信</button>
+          </div>
+          <div id="notifyPane" class="msg-pane active"></div>
+          <div id="chatPane" class="msg-pane">
+            <div id="convList"></div>
+            <div id="threadView" class="hidden">
+              <div class="thread-head">
+                <button class="btn ghost" id="backConv">← 返回</button>
+                <span id="threadWho"></span>
+              </div>
+              <div id="threadMsgs" class="thread-msgs"></div>
+              <div class="thread-input">
+                <input id="threadText" placeholder="输入消息…" />
+                <button class="btn primary" id="threadSend">发送</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="mePaneBind" class="me-pane">
+          <p class="sub">绑定后可用手机号 / 邮箱 / 微信 / QQ 一键登录。</p>
+          <div class="bind-list" id="bindList"></div>
+          <input id="meBindTarget" placeholder="手机号或邮箱" />
+          <div class="row-code">
+            <input id="meBindCode" placeholder="6 位验证码" />
+            <button class="btn ghost" id="meBindSendCode">获取验证码</button>
+          </div>
+          <button class="btn primary" id="meBindBtn">验证并绑定</button>
+          <div style="margin-top:10px">
+            <button class="chip" id="meBindWx">🔗 绑定微信</button>
+            <button class="chip" id="meBindQQ">🔗 绑定 QQ</button>
+          </div>
+          <p class="msg" id="meBindMsg"></p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 桌宠：戴兔帽抱仓鼠的小猪 -->
+  <div id="deskPet" class="desk-pet" title="点我问旅行">
+    <div class="pet-hint">点我问路线</div>
+    <svg viewBox="0 0 100 120" width="86" height="103" aria-label="猪猪旅行助手">
+      <defs>
+        <linearGradient id="pigSkin" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#ffd1dc"/>
+          <stop offset="100%" stop-color="#ffb7c5"/>
+        </linearGradient>
+      </defs>
+      <ellipse cx="50" cy="112" rx="32" ry="6" fill="rgba(0,0,0,.12)"/>
+      <circle cx="50" cy="74" r="40" fill="url(#pigSkin)"/>
+      <ellipse cx="30" cy="42" rx="10" ry="16" fill="#ff9eb0" transform="rotate(-22 30 42)"/>
+      <ellipse cx="70" cy="42" rx="10" ry="16" fill="#ff9eb0" transform="rotate(22 70 42)"/>
+      <path d="M20 56 Q50 30 80 56 Q80 72 50 76 Q20 72 20 56" fill="#60a5fa"/>
+      <ellipse cx="30" cy="34" rx="7" ry="18" fill="#93c5fd"/>
+      <ellipse cx="70" cy="34" rx="7" ry="18" fill="#93c5fd"/>
+      <circle cx="36" cy="70" r="5.5" fill="#374151"/>
+      <circle cx="64" cy="70" r="5.5" fill="#374151"/>
+      <circle cx="37.8" cy="68.2" r="2" fill="#fff"/>
+      <circle cx="65.8" cy="68.2" r="2" fill="#fff"/>
+      <ellipse cx="50" cy="82" rx="13" ry="9" fill="#ff8fa3"/>
+      <circle cx="46" cy="82" r="2.2" fill="#be123c"/>
+      <circle cx="54" cy="82" r="2.2" fill="#be123c"/>
+      <circle cx="26" cy="78" r="5.5" fill="#ffccd5" opacity=".7"/>
+      <circle cx="74" cy="78" r="5.5" fill="#ffccd5" opacity=".7"/>
+      <ellipse cx="32" cy="96" rx="8" ry="5" fill="#ffb7c5" transform="rotate(-15 32 96)"/>
+      <ellipse cx="68" cy="96" rx="8" ry="5" fill="#ffb7c5" transform="rotate(15 68 96)"/>
+      <ellipse cx="50" cy="94" rx="15" ry="11" fill="#fbbf24"/>
+      <circle cx="41" cy="89" r="3" fill="#374151"/>
+      <circle cx="59" cy="89" r="3" fill="#374151"/>
+      <ellipse cx="50" cy="96" rx="4.5" ry="3" fill="#f59e0b"/>
+      <circle cx="50" cy="91" r="1.8" fill="#be123c"/>
+      <ellipse cx="35" cy="108" rx="7" ry="5" fill="#ff9eb0"/>
+      <ellipse cx="65" cy="108" rx="7" ry="5" fill="#ff9eb0"/>
+    </svg>
+  </div>
+
+  <div id="petChat" class="pet-chat hidden">
+    <div class="pet-chat-header">
+      <span>🐷 猪猪旅行助手</span>
+      <button id="petChatClose">×</button>
+    </div>
+    <div id="petChatBox" class="pet-chat-box"></div>
+    <div class="pet-chat-input">
+      <input id="petChatText" placeholder="去哪？预算？几天？" />
+      <button class="btn primary" id="petChatSend">发送</button>
+    </div>
+    <div class="pet-quick">
+      <button data-q="帮我规划三亚5日游">三亚5日</button>
+      <button data-q="成都小众美食推荐">成都美食</button>
+      <button data-q="性价比最高的旅游路线">性价比</button>
+      <button data-q="帮我找宝藏地点">宝藏地点</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
