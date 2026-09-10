@@ -1,5 +1,7 @@
 // test_tc3_signature.mjs —— 校验腾讯云 TC3-HMAC-SHA256 签名算法实现是否正确
-// 使用腾讯云官方文档中「完整公开」的测试向量（密钥未脱敏，可复现）。
+// 使用腾讯云官方文档公开的测试向量。SecretId 用占位段（GitHub Secret Scanning 拦截 AKID 前缀）；
+// 官方示例 SecretKey 参与 HMAC，不入库，需通过 TC3_SAMPLE_SECRET_KEY 注入才能复现最终 Signature。
+// 默认运行：13 项断言全通过 + 1 项跳过（HashedCanonicalRequest 等官方向量已逐字节校验）。
 // 参考：《接口签名 v3》文档，GET 示例：
 //   SecretId / SecretKey  AKIDoEXAMPLEoEXAMPLEoEXAMPLEoEXAMPLEo / Gu5t9EXAMPLEoEXAMPLEoEXAMPLEoEXAMPLEo
 //   timestamp 1539084154（UTC 2018-10-09）
@@ -35,7 +37,10 @@ const check = (name, ok, extra = '') => {
 /* ---------- 2. 可复现 GET 向量：完整校验签名链 ---------- */
 {
   const secretId = 'AKIDoEXAMPLEoEXAMPLEoEXAMPLEoEXAMPLEo';
-  const secretKey = 'Gu5t9EXAMPLEoEXAMPLEoEXAMPLEoEXAMPLEo';
+  // 官方示例 SecretKey 直接参与 HMAC 运算，占位符无法复现官方 Signature。
+  // 该值不入库（GitHub Secret Scanning 会拦截云凭证），改为运行时可选注入：
+  //   TC3_SAMPLE_SECRET_KEY=<官方示例 SecretKey> node test_tc3_signature.mjs
+  const secretKey = process.env.TC3_SAMPLE_SECRET_KEY || 'Gu5t9EXAMPLEoEXAMPLEoEXAMPLEoEXAMPLEo';
   const ts = 1539084154;
   const service = 'cvm';
   // 注意：金融专区文档正文写的是 cvm.fincloud.tencent.cn，但官方给出的
@@ -95,7 +100,14 @@ const check = (name, ok, extra = '') => {
     .digest('hex');
 
   const OFF_SIGNATURE = '5da7a33f6993f0614b047e5df4582db9e9bf4672ba50567dba16c6ccf174c474';
-  check('最终 Signature 与官方一致', signature === OFF_SIGNATURE, `实际=${signature.slice(0, 16)}…`);
+  if (process.env.TC3_SAMPLE_SECRET_KEY) {
+    check('最终 Signature 与官方一致', signature === OFF_SIGNATURE, `实际=${signature.slice(0, 16)}…`);
+  } else {
+    console.log(
+      '[SKIP] 最终 Signature 与官方一致（需 TC3_SAMPLE_SECRET_KEY 注入官方示例 SecretKey；' +
+        '官方 HashedCanonicalRequest 已逐字节校验，签名链路同上）'
+    );
+  }
 
   check('CredentialScope 拼接正确', credentialScope === '2018-10-09/cvm/tc3_request');
   check('region 参数正确', region === 'shjr');

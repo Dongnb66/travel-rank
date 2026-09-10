@@ -31,7 +31,7 @@
 - **JWT 双令牌 + RBAC**：用 Node 原生 `crypto`（HMAC-SHA256 + scrypt）实现 access/refresh 双 token 与角色权限，**零鉴权第三方依赖**
 - **多方式登录 / 账号绑定**：手机号+密码注册登录 + 微信/QQ 扫码登录（首次强制验证码绑定），同一用户可绑多身份（覆盖社招高频 JD 词）
 - **腾讯云短信（零依赖对接）**：用 Node 内置 `crypto` 自行实现腾讯云 API 3.0 的 **TC3-HMAC-SHA256 签名**（不引 SDK），配 5 个环境变量即真实下发；`SMS_DRY_RUN=1` 可只看请求体不扣费
-- **签名算法有测试背书**：`test_tc3_signature.mjs` 用腾讯云官方文档公开的测试向量校验（payload 哈希 + HashedCanonicalRequest + 最终 Signature），**14/14 通过**
+- **签名算法有测试背书**：`test_tc3_signature.mjs` 用腾讯云官方文档公开的测试向量校验（payload 哈希 + HashedCanonicalRequest 等），**13 项断言全通过**；最终 Signature 需注入官方示例 SecretKey 复现（`TC3_SAMPLE_SECRET_KEY=... node backend/test_tc3_signature.mjs`，14/14）——凭证不入库，避免 GitHub Secret Scanning 拦截
 - **AI 智能体 + 工具调用**：`/api/chat` 旅行助手以 DeepSeek 函数调用串联路线规划 / 比价 / 百度地图搜宝藏地点；无 Key 自动降级规则，绝不编造
 - **数据库事务**：发帖用事务原子写入「帖 + 优点标签」，保证一致性
 - **SQL 聚合/排名**：热度加权、高频优点提取、热门帖排序，覆盖真实数据分析场景
