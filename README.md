@@ -24,7 +24,7 @@
    - **验证码双通道**：手机号走**腾讯云短信 SMS**，邮箱走 **SMTP**（未配置自动降级为演示模式，验证码回传前端便于联调）
    - 个人主页「我的」抽屉：资料、统计、我的帖子、消息中心（私信 + 通知）、账号绑定
 6. **消息中心**：私信会话 + 评论自动通知作者，顶栏「我的」带未读红点
-6. **AI 旅行助手（智能体 + 工具调用）**：对话式规划，智能体可调用工具——`list_locations` / `get_price` / `optimize_route` / `baidu_map_search`（百度地图搜宝藏地点，有 AK 走真实 API，否则 mock 兜底）；有 Key 走 DeepSeek 函数调用，无 Key 走规则。
+6. **AI 旅行助手（ReAct 风格自主 Agent）**：对话式规划，LLM 通过 `tool_choice:auto` **自主决策**是否调用工具 / 调用哪个 / 是否继续（最多 4 轮），工具结果回灌上下文后再次决策、无 `tool_calls` 即自终止；可用工具——`list_locations` / `get_price` / `optimize_route` / `baidu_map_search`（百度地图搜宝藏地点，有 AK 走真实 API，否则 mock 兜底）；无 Key 自动降级规则兜底。
 7. **社区**：帖子评论互动，社区动态流。
 8. **运营维护**：结构化请求日志（方法/路径/状态码/耗时）、`/api/health` 健康检查、`/api/admin/ops` 运维看板（数据规模与运行时长），体现上线后的可观测性。
 
@@ -34,7 +34,7 @@
 - **多方式登录 / 账号绑定**：手机号+密码注册登录 + 微信/QQ 扫码登录（首次强制验证码绑定），同一用户可绑多身份（覆盖社招高频 JD 词）
 - **腾讯云短信（零依赖对接）**：用 Node 内置 `crypto` 自行实现腾讯云 API 3.0 的 **TC3-HMAC-SHA256 签名**（不引 SDK），配 5 个环境变量即真实下发；`SMS_DRY_RUN=1` 可只看请求体不扣费
 - **签名算法有测试背书**：`test_tc3_signature.mjs` 用腾讯云官方文档公开的测试向量校验（payload 哈希 + HashedCanonicalRequest 等），**13 项断言全通过**；最终 Signature 需注入官方示例 SecretKey 复现（`TC3_SAMPLE_SECRET_KEY=... node backend/test_tc3_signature.mjs`，14/14）——凭证不入库，避免 GitHub Secret Scanning 拦截
-- **AI 智能体 + 工具调用**：`/api/chat` 旅行助手以 DeepSeek 函数调用串联路线规划 / 比价 / 百度地图搜宝藏地点；无 Key 自动降级规则，绝不编造
+- **自主 Agent 循环（工具 + 决策）**：`/api/chat` 旅行助手以 DeepSeek 函数调用实现 ReAct 式循环——`tool_choice:auto` 让 LLM 自主决定调不调工具、调哪个、是否再来一轮（上限 4 轮防死循环），工具结果回灌后再决策；无 Key 自动降级规则，绝不编造
 - **数据库事务**：发帖用事务原子写入「帖 + 优点标签」，保证一致性
 - **SQL 聚合/排名**：热度加权、高频优点提取、热门帖排序，覆盖真实数据分析场景
 - **运营维护可观测**：请求日志中间件 + `/api/health` + `/api/admin/ops` 运维看板
@@ -85,7 +85,7 @@ travel-rank/backend/
 │   ├── auth.js        # JWT 双 token + RBAC + 手机号/微信/QQ 登录绑定（crypto 原生）
 │   ├── aggregator.js  # 聚合排名引擎（热度/优点/热门帖）
 │   ├── llm.js         # LLM 总结 + 规则兜底
-│   ├── agent.js       # AI 旅行助手（DeepSeek 函数调用 + 百度地图工具 + 规则兜底）
+│   ├── agent.js       # AI 旅行助手（ReAct 循环：函数调用自主决策 + 4 工具 + 规则兜底）
 │   └── planner.js     # 行程规划 + 价格比较
 ├── public/            # 单文件 SPA（口碑榜/发帖/规划/比价/AI助手/社区/运维）
 └── test_smoke.mjs     # 全链路测试
