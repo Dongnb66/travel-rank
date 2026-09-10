@@ -1,5 +1,7 @@
 # 🧭 途见 TravelRank · 旅游口碑聚合与行程规划平台
 
+![Tests](https://github.com/Dongnb66/travel-rank/actions/workflows/ci.yml/badge.svg)
+
 一个**用户发帖分享地点优点 → 平台自动聚合口碑榜 → AI 总结 + 行程规划比价**的全栈项目。
 与"多智能体 / RAG"类 AI 项目互补，独立展示**前后端工程 + 数据聚合排名**能力。
 
