@@ -28,6 +28,12 @@ jobs:
         working-directory: backend
         run: node --experimental-sqlite test_smoke.mjs
 
+      - name: Run agent ReAct decision-loop test
+        # 用 fetch 桩把模型换成可控脚本，断言「自主决策」语义：
+        # tool_choice=auto / 多轮工具调用 / 模型说停才停 / 4 轮上限防失控 / 报错降级
+        working-directory: backend
+        run: node --experimental-sqlite test_agent_react.mjs
+
       - name: Run TC3 signature vector test
         working-directory: backend
         run: node test_tc3_signature.mjs

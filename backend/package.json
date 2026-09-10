@@ -6,7 +6,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node --experimental-sqlite server.js",
-    "smoke": "node --experimental-sqlite test_smoke.mjs"
+    "test": "node --experimental-sqlite test_agent_react.mjs",
+    "smoke": "node --experimental-sqlite test_smoke.mjs",
+    "test:all": "node --experimental-sqlite test_agent_react.mjs && node --experimental-sqlite test_smoke.mjs && node test_tc3_signature.mjs"
   },
   "dependencies": {
     "express": "^4.19.2"
