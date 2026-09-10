@@ -1,4 +1,6 @@
 // server.js —— Express 服务：REST API + 静态托管前端
+// 必须是第一个 import：ESM 的 import 会被提升，.env 要在其它模块加载前就绪
+import './src/env.js';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';

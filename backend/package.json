@@ -11,6 +11,7 @@
     "test:all": "node --experimental-sqlite test_agent_react.mjs && node --experimental-sqlite test_smoke.mjs && node test_tc3_signature.mjs"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "express": "^4.19.2"
   },
   "license": "MIT"

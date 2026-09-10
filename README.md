@@ -44,10 +44,13 @@
 
 ```bash
 cd backend
-npm install        # 仅装 express（纯 JS，无原生编译）
+npm install        # 仅装 express + dotenv（纯 JS，无原生编译）
+cp .env.example .env   # 可选：填入 TRAVEL_LLM_KEY 启用 AI 助手；不填则走规则兜底
 npm start          # 等价于 node --experimental-sqlite server.js
 # 打开 http://localhost:3000
 ```
+
+> `.env` 由 `backend/src/env.js` 加载（它是 `server.js` 的第一个 import）。已存在的 shell 环境变量优先，不会被 `.env` 覆盖。
 
 演示账号（含 6 地点 / 12 帖 / 价格比较种子数据）：
 
@@ -60,10 +63,22 @@ npm start          # 等价于 node --experimental-sqlite server.js
 ## 验证
 
 ```bash
-npm test          # AI 助手的「自主决策」行为测试（20 项断言，无需 API Key）
+npm test          # AI 助手的「自主决策」行为测试（36 项断言，无需 API Key）
 npm run smoke     # 全链路冒烟测试，覆盖注册/登录/发帖/投票/榜单/AI总结/规划/比价/RBAC
 npm run test:all  # 上面两项 + 腾讯云 TC3 签名测试向量
 ```
+
+### 修复的真 bug：`.env` 此前从未被加载
+
+排查时发现：仓库带了 `backend/.env.example`，README 也写着「有 `TRAVEL_LLM_KEY` 走 DeepSeek」，但**代码里没有任何加载 `.env` 的语句**（`package.json` 里也没有 `--env-file`）——照着 `cp .env.example .env` 配好 Key，程序一个都读不到，AI 助手永远停在规则兜底，且没有任何提示。
+
+同时 `src/agent.js` / `src/llm.js` 是在**模块加载阶段**快照 `process.env` 的，而 ESM 的 import 会被提升——即使后来在 `server.js` 里补一句 config 调用也救不了。
+
+修法（两道保险，缺一不可）：
+1. 新增 `src/env.js` 并作为 `server.js` 的**第一个 import**，保证 `.env` 早于其它模块加载；已存在的 shell 环境变量优先。
+2. `agent.js` / `llm.js` 的 Key 读取改为**调用时取值**，顺序再被改动也不会退化；占位符 Key（`.env.example` 直接复制没改）视为未配置，走规则兜底而不是报 401。
+
+回归断言已写进 `npm test` 第 0 节：「import 之后再设 Key 也能读到」——这条在原实现下必然失败。
 
 ### 「自主决策」是怎么被证明的
 
@@ -98,6 +113,7 @@ travel-rank/backend/
 ├── server.js          # Express 服务 + API + 静态托管 + 请求日志
 ├── src/
 │   ├── db.js          # node:sqlite 建表/种子/读写（含密码哈希/绑定/评论/运维统计）
+│   ├── env.js         # .env 引导模块（必须是 server.js 的第一个 import）
 │   ├── auth.js        # JWT 双 token + RBAC + 手机号/微信/QQ 登录绑定（crypto 原生）
 │   ├── aggregator.js  # 聚合排名引擎（热度/优点/热门帖）
 │   ├── llm.js         # LLM 总结 + 规则兜底

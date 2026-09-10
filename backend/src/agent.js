@@ -3,10 +3,23 @@
 // 有 DeepSeek Key 走 function calling；无 Key 走规则兜底，保证可运行、不编造
 import { db, getPriceQuotes, getAllLocations } from './db.js';
 import { planTrip } from './planner.js';
+import { isPlaceholder } from './env.js';
 
-const API_KEY = process.env.TRAVEL_LLM_KEY || '';
-const BASE_URL = process.env.TRAVEL_LLM_BASE || 'https://api.deepseek.com/v1';
-const MODEL = process.env.TRAVEL_LLM_MODEL || 'deepseek-chat';
+// 配置一律在**调用时**读取，不在模块顶层快照 ——
+// ESM 的 import 提升会让模块体先于 .env 加载执行，顶层快照会永久锁死成空串。
+function getLlmConfig() {
+  const rawKey = process.env.TRAVEL_LLM_KEY || '';
+  return {
+    apiKey: isPlaceholder(rawKey) ? '' : rawKey,
+    baseUrl: process.env.TRAVEL_LLM_BASE || 'https://api.deepseek.com/v1',
+    model: process.env.TRAVEL_LLM_MODEL || 'deepseek-chat',
+  };
+}
+
+/** 是否已配置可用的模型 Key（占位符视为未配置） */
+export function llmConfigured() {
+  return Boolean(getLlmConfig().apiKey);
+}
 
 // 工具 1：列出平台已有地点
 function listLocations() {
@@ -63,16 +76,17 @@ const dispatch = { list_locations: () => listLocations(), get_price: (a) => getP
 
 // 主入口：messages = [{role, content}]
 export async function chatWithAgent(messages) {
-  if (!API_KEY) return ruleChat(messages);
+  const { apiKey, baseUrl, model } = getLlmConfig();
+  if (!apiKey) return ruleChat(messages);
   try {
     const tools = TOOLS;
     let conv = messages.map((m) => ({ role: m.role, content: m.content }));
     for (let round = 0; round < 4; round++) {
-      const resp = await fetch(`${BASE_URL}/chat/completions`, {
+      const resp = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: MODEL,
+          model,
           messages: [{ role: 'system', content: '你是「途见」旅游助手，擅长路线规划、比价、挖掘宝藏地点。优先调用工具获取真实数据后回答，不编造。' }, ...conv],
           tools,
           tool_choice: 'auto',
