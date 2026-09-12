@@ -121,7 +121,7 @@ travel-rank/backend/
 │   └── planner.js     # 行程规划 + 价格比较
 ├── public/            # 单文件 SPA（口碑榜/发帖/规划/比价/AI助手/社区/运维）
 └── test_smoke.mjs     # 全链路冒烟测试
-└── test_agent_react.mjs  # AI 助手自主决策行为测试（fetch 桩，20 项断言）
+└── test_agent_react.mjs  # AI 助手自主决策行为测试（fetch 桩，36 项断言）
 ```
 
 MIT License。
