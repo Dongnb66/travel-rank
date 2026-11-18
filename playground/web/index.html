@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:,">
+<title>途见 · 旅游口碑榜</title>
+<style>
+ body{font-family:system-ui,"Segoe UI","Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#1f2937}
+ .wrap{max-width:1000px;margin:0 auto;padding:20px 14px 60px}
+ h1{font-size:22px;margin:8px 0} h2{font-size:16px;margin:0 0 10px}
+ .tip{background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:10px 12px;font-size:13px;margin:10px 0}
+ .card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin:12px 0}
+ .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+ label{display:block;font-size:13px;margin:8px 0 4px}
+ input,textarea,select{width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:6px;padding:8px;font-size:13px;font-family:inherit}
+ textarea{min-height:64px}
+ button{background:#2563eb;color:#fff;border:0;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;margin:4px 4px 0 0}
+ button.ghost{background:#fff;color:#2563eb;border:1px solid #bfdbfe}
+ button:hover{filter:brightness(.95)}
+ .small{font-size:12px;color:#6b7280}
+ .chip{display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:999px;padding:2px 10px;font-size:12px;margin:2px}
+ .heat{font-size:20px;font-weight:700;color:#b45309}
+ .post{border-top:1px dashed #e5e7eb;padding:8px 0}
+ .row{display:flex;gap:10px}.row>div{flex:1}
+ .msg{border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px}
+ .msg.user{background:#dbeafe}.msg.bot{background:#f3f4f6}
+ .err{color:#b91c1c}
+ table{border-collapse:collapse;width:100%;font-size:12px} td,th{border:1px solid #e5e7eb;padding:4px 8px;text-align:left}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>途见 · 旅游口碑榜</h1>
+<div class="tip">零散发帖 → 平台级口碑榜：热度 = 发帖数×2 + 投票×3 + 平均评分×5，置顶优先。公开榜来自托管数据库种子数据；<b>你的发帖/点赞/评论存浏览器本地（演示视图）</b>，点「重算」由聚合引擎无状态并入重算——不写公开库。登录/私信/持久发帖等完整社区能力在本地完整版（仓库可 clone）。AI 助手无 Key 走规则兜底，不编造。</div>
+<div class="small" id="demo-state"></div>
+<button class="ghost" onclick="resetDemo()">清空我的演示视图</button>
+
+<h2>口碑榜</h2>
+<div class="grid" id="board"></div>
+
+<div class="card"><h2>发一篇分享（进我的演示视图）</h2>
+<div class="row"><div><label>地点</label><select id="p-loc"></select></div>
+<div><label>署名</label><input id="p-author" placeholder="演示游客"></div>
+<div><label>评分 1-5</label><input id="p-rating" value="5"></div></div>
+<label>标题</label><input id="p-title" placeholder="如：成都美食暴走指南">
+<label>内容</label><textarea id="p-content" placeholder="真实体验，别编造~"></textarea>
+<label>优点标签（逗号分隔）</label><input id="p-adv" placeholder="美食多, 性价比高">
+<button onclick="submitPost()">加入演示视图</button><button onclick="refresh()">重算榜单</button><span id="p-msg" class="small"></span>
+</div>
+
+<div class="card"><h2>比价 + 行程规划</h2>
+<div class="row"><div><label>目的地（可多选）</label><select id="pl-locs" multiple size="6"></select></div>
+<div><label>每站天数</label><input id="pl-days" value="3"></div>
+<div><label>预算（可选）</label><input id="pl-budget" placeholder="如 3000"></div></div>
+<button onclick="plan()">规划路线</button>
+<div id="pl-out"></div>
+</div>
+
+<div class="card"><h2>AI 旅行助手</h2>
+<div id="chat"></div>
+<div class="row"><div><input id="chat-in" placeholder="帮我规划三亚+成都5日游 / 成都小众美食 / 三亚多少钱"></div>
+<div style="flex:0"><button onclick="sendChat()">发送</button></div></div>
+<div class="small" id="chat-src"></div>
+</div>
+
+<div class="small">源码：github.com/Dongnb66/travel-rank · 聚合/规划/ReAct 与本地完整版同源 · 演示数据非真实报价</div>
+</div>
+<script>
+const API='/functions/v1/app/';
+const el=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+let localPosts=load('travel_posts',[]),localVotes=load('travel_votes',{}),localComments=load('travel_comments',{});
+async function get(t,q){const r=await fetch(API+t+(q||''));const j=await r.json();if(!j.ok)throw new Error(j.error||'请求失败');return j}
+async function post(t,b){const r=await fetch(API+t,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const j=await r.json();if(!j.ok)throw new Error(j.error||'请求失败');return j}
+function demoActive(){return localPosts.length>0||Object.keys(localVotes).length>0}
+function stateLine(){el('demo-state').textContent=demoActive()?`演示视图：${localPosts.length} 篇本地帖 / ${Object.keys(localVotes).length} 个点赞调整（仅你浏览器可见）`:'当前为公开榜（种子数据）。发帖/点赞后进入你的演示视图。'}
+async function refresh(){
+ stateLine();
+ const j=demoActive()?await post('preview',{extraPosts:localPosts,localVotes}):await get('leaderboard');
+ renderBoard(j.board);
+}
+function renderBoard(board){
+ el('board').innerHTML=board.map(l=>`<div class="card"><h2>${esc(l.name)} <span class="small">${esc(l.city)}·${esc(l.category)}${l.pinned?' · 置顶':''}</span></h2>
+  <div class="heat">${l.heat}</div><div class="small">${l.postCount} 篇分享</div>
+  <div>${l.topAdvantages.map(a=>`<span class="chip">${esc(a.name)} ×${a.freq}</span>`).join('')}</div>
+  <button class="ghost" onclick="summarize('${l.id}')">平台总结</button><div id="sum-${l.id}" class="small"></div>
+  ${l.hotPosts.map(p=>`<div class="post"><b>${esc(p.title)}</b> <span class="small">${esc(p.author)} · ${p.rating||'-'}分${String(p.id).startsWith('local-')?' · 我的演示帖':''}</span><div class="small">${esc(p.content)}</div>
+   <button class="ghost" onclick="tapVote('${p.id}')">赞 ${p.votes}</button><button class="ghost" onclick="openComments('${p.id}')">评论</button><div id="cm-${p.id}"></div></div>`).join('')}
+  </div>`).join('');
+}
+function tapVote(pid){
+ if(localVotes[pid])delete localVotes[pid];else localVotes[pid]=1;
+ save('travel_votes',localVotes);refresh();
+}
+async function summarize(lid){
+ el('sum-'+lid).textContent='总结中…';
+ try{const r=await post('summarize',{locationId:lid});el('sum-'+lid).textContent=r.summary+'（'+r.source+'）'}catch(e){el('sum-'+lid).innerHTML='<span class="err">'+esc(e.message)+'</span>'}
+}
+function submitPost(){
+ const title=el('p-title').value.trim(),content=el('p-content').value.trim();
+ if(!title||!content){el('p-msg').innerHTML='<span class="err">标题和内容必填</span>';return}
+ localPosts.push({locationId:el('p-loc').value,author:el('p-author').value.trim()||'演示游客',title,content,rating:Number(el('p-rating').value)||5,advantages:el('p-adv').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),votes:0});
+ save('travel_posts',localPosts);
+ el('p-title').value='';el('p-content').value='';el('p-msg').textContent='已加入演示视图';
+ refresh();
+}
+function resetDemo(){localPosts=[];localVotes={};localComments={};save('travel_posts',[]);save('travel_votes',{});save('travel_comments',{});refresh()}
+async function openComments(pid){
+ const box=el('cm-'+pid);
+ if(box.dataset.open){box.innerHTML='';delete box.dataset.open;return}
+ box.dataset.open='1';
+ let comments=[];
+ if(!String(pid).startsWith('local-')){try{comments=(await get('comments','?postId='+pid)).comments}catch{}}
+ const mine=localComments[pid]||[];
+ box.innerHTML=[...comments,...mine].map(c=>`<div class="msg bot"><b>${esc(c.author)}</b>：${esc(c.content)}</div>`).join('')+
+  `<div class="row"><div><input id="ci-${pid}" placeholder="写评论（本地演示）…"></div><div style="flex:0"><button onclick="sendComment('${pid}')">评</button></div></div>`;
+}
+function sendComment(pid){
+ const input=el('ci-'+pid);const content=input.value.trim();if(!content)return;
+ (localComments[pid]=localComments[pid]||[]).push({author:el('p-author').value.trim()||'演示游客',content});
+ save('travel_comments',localComments);input.value='';delete el('cm-'+pid).dataset.open;openComments(pid);
+}
+async function plan(){
+ const ids=[...el('pl-locs').selectedOptions].map(o=>o.value);
+ try{
+  const r=await post('plan',{destinations:ids.map(id=>({locationId:id,days:Number(el('pl-days').value)})),budget:el('pl-budget').value?Number(el('pl-budget').value):undefined});
+  el('pl-out').innerHTML='<p><b>'+esc(r.route.join(' → '))+'</b> · 预计 ¥'+r.totalCost+'</p><p class="small">'+esc(r.recommendation)+'</p>'+
+   r.stops.map(s=>'<table><tr><th>'+esc(s.name)+' '+s.days+'天</th><th>套餐</th><th>价格</th><th>估算</th></tr>'+s.comparison.map(q=>'<tr><td></td><td>'+esc(q.provider)+'</td><td>¥'+q.price+'/'+q.duration_days+'天</td><td>'+(q.provider===s.chosenProvider?'¥'+s.estCost+' ✓':'')+'</td></tr>').join('')+'</table>').join('');
+ }catch(e){el('pl-out').innerHTML='<span class="err">'+esc(e.message)+'</span>'}
+}
+const history=[];
+async function sendChat(){
+ const text=el('chat-in').value.trim();if(!text)return;
+ history.push({role:'user',content:text});
+ el('chat').innerHTML+=`<div class="msg user">${esc(text)}</div>`;el('chat-in').value='';
+ el('chat-src').textContent='思考中…';
+ try{const r=await post('chat',{messages:history});history.push({role:'assistant',content:r.reply});
+  el('chat').innerHTML+=`<div class="msg bot">${esc(r.reply)}</div>`;el('chat-src').textContent='来源：'+r.source;
+ }catch(e){el('chat-src').innerHTML='<span class="err">'+esc(e.message)+'</span>'}
+}
+(async()=>{
+ const {locations}=await get('locations');
+ el('p-loc').innerHTML=locations.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join('');
+ el('pl-locs').innerHTML=locations.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join('');
+ await refresh();
+})().catch(e=>{el('board').innerHTML='<span class="err">'+esc(e.message)+'</span>'});
+</script>
+</body>
+</html>
