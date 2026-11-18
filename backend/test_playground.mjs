@@ -12,10 +12,19 @@ test('leaderboard 权重与本地 aggregator 同源', async () => {
   const j = await (await get('leaderboard')).json();
   assert.equal(j.ok, true);
   const sanya = j.board.find((l) => l.name === '三亚');
-  assert.equal(sanya.heat, 32.5); // 2帖*2 + 2票*3 + 4.5分*5
-  assert.equal(sanya.postCount, 2);
-  assert.ok(sanya.topAdvantages.some((a) => a.name === '海水清澈' && a.freq === 1));
+  assert.equal(sanya.heat, 101.3); // 3帖*2 + 24票*3 + (14/3)分*5
+  assert.equal(sanya.postCount, 3);
+  assert.ok(sanya.topAdvantages.some((a) => a.name === '海水清澈' && a.freq === 2));
+  assert.equal(j.board[0].name, '三亚'); // 差异化后榜首明确
+  assert.equal(sanya.evidence.voteSum, 24);
   assert.equal(j.board.length, 6);
+});
+
+test('asOf 时间切片：11-05 的三亚只含早期两帖', async () => {
+  const j = await (await get('leaderboard?asOf=2026-11-05')).json();
+  const sanya = j.board.find((l) => l.name === '三亚');
+  assert.equal(sanya.postCount, 2);
+  assert.equal(sanya.heat, 59.5); // 2*2 + 11票*3 + 4.5*5（投票时间戳分散，11-05 前仅 11 票）
 });
 
 test('preview 成都并入后热度数值', async () => {
@@ -23,8 +32,8 @@ test('preview 成都并入后热度数值', async () => {
   const loc = base.board.find((l) => l.name === '成都');
   const j = await (await post('preview', { extraPosts: [{ locationId: loc.id, title: 't', content: 'c', rating: 5, advantages: [], votes: 3 }] })).json();
   const cd = j.board.find((l) => l.name === '成都');
-  // 3帖*2 + (2+3)票*3 + ((5+4+5)/3)*5 = 6 + 15 + 23.333… = 44.3
-  assert.equal(cd.heat, 44.3);
+  // 4帖*2 + (18+3)票*3 + ((5+4+5+5)/4)*5 = 8 + 63 + 23.75 = 94.75 → 94.8
+  assert.equal(cd.heat, 94.8);
 });
 
 test('preview 非法输入 400', async () => {

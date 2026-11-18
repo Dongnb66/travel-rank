@@ -71,14 +71,31 @@ function hotPosts(posts, votes, advs, limit, lid = null) {
     .sort((a, b) => b.votes - a.votes || String(b.created_at).localeCompare(String(a.created_at)))
     .slice(0, limit);
 }
-function leaderboard(d) {
-  const board = d.locs.map((l) => ({
-    ...l,
-    heat: Math.round(locationHeat(d.posts, d.votes, l.id) * 10) / 10,
-    postCount: d.posts.filter((p) => p.location_id === l.id).length,
-    topAdvantages: advantagesOf(d.advs, d.posts, l.id),
-    hotPosts: hotPosts(d.posts, d.votes, d.advs, 3, l.id),
-  }));
+function leaderboard(d, asOf) {
+  if (asOf) {
+    const cut = asOf + 'T23:59:59Z';
+    const posts = d.posts.filter((p) => p.created_at <= cut);
+    const ids = new Set(posts.map((p) => p.id));
+    d = { ...d, posts, votes: d.votes.filter((v) => ids.has(v.post_id) && (v.created_at || '') <= cut), advs: d.advs.filter((a) => ids.has(a.post_id)) };
+  }
+  const board = d.locs.map((l) => {
+    const lp = d.posts.filter((p) => p.location_id === l.id);
+    const voteSum = lp.reduce((s, p) => s + votesOf(d.votes, p.id), 0);
+    const rated = lp.filter((p) => p.rating != null);
+    const avgRating = rated.length ? rated.reduce((s, p) => s + p.rating, 0) / rated.length : 0;
+    return {
+      ...l,
+      heat: Math.round(locationHeat(d.posts, d.votes, l.id) * 10) / 10,
+      postCount: lp.length,
+      topAdvantages: advantagesOf(d.advs, d.posts, l.id),
+      hotPosts: hotPosts(d.posts, d.votes, d.advs, 3, l.id),
+      evidence: {
+        voteSum,
+        avgRating: Math.round(avgRating * 100) / 100,
+        posts: lp.map((p) => ({ id: p.id, title: p.title, author: p.author, votes: votesOf(d.votes, p.id), rating: p.rating, created_at: p.created_at, advantages: d.advs.filter((a) => a.post_id === p.id).map((a) => a.advantage) })),
+      },
+    };
+  });
   board.sort((a, b) => (b.pinned - a.pinned) || (b.heat - a.heat));
   return board;
 }
@@ -221,7 +238,11 @@ export async function handleTravel({ request, supabase, env }) {
       if (tool === 'health') return json(200, { ok: true, version: 'playground-1.0.0', time: new Date().toISOString() });
       const d = await loadAll(supabase);
       if (tool === 'locations') return json(200, { ok: true, locations: d.locs });
-      if (tool === 'leaderboard') return json(200, { ok: true, board: leaderboard(d) });
+      if (tool === 'leaderboard') {
+        const asOf = new URL(request.url).searchParams.get('asOf');
+        if (asOf && !/^\d{4}-\d{2}-\d{2}$/.test(asOf)) return fail('asOf 格式须为 YYYY-MM-DD');
+        return json(200, { ok: true, board: leaderboard(d, asOf || null), asOf: asOf || null });
+      }
       if (tool === 'hot') return json(200, { ok: true, posts: hotPosts(d.posts, d.votes, d.advs, 10) });
       if (tool === 'posts') {
         const lid = new URL(request.url).searchParams.get('locationId');
@@ -265,7 +286,8 @@ export async function handleTravel({ request, supabase, env }) {
         const n = int(delta, 'localVotes', -1000, 1000);
         if (n) votes.push({ post_id: pid, voter: 'local-tap', value: n });
       }
-      return json(200, { ok: true, board: leaderboard({ ...d, posts, advs, votes }) });
+      const asOf = b.asOf && /^\d{4}-\d{2}-\d{2}$/.test(b.asOf) ? b.asOf : null;
+      return json(200, { ok: true, board: leaderboard({ ...d, posts, advs, votes }, asOf) });
     }
     if (tool === 'summarize') {
       const lid = uid(b.locationId, 'locationId');
